@@ -58,8 +58,7 @@ go test -v -covermode=atomic -cover -race -coverprofile=coverage.txt -p 1 ./...
 Static checks and formatting:
 
 ```bash
-go vet ./...
-make checks   # verifies gofmt compliance
+make checks   # runs go vet and verifies gofmt compliance
 make lint     # runs golangci-lint (requires golangci-lint installed)
 ```
 
