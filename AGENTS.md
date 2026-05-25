@@ -4,17 +4,18 @@ Instructions for AI coding agents (Claude Code, Copilot, Cursor, etc.) working i
 
 ## Project overview
 
-<!-- TODO: one paragraph describing what this repo does -->
+`redis_exporter` is a Prometheus exporter for Redis metrics. It connects to one or more Redis instances and exposes their `INFO` statistics, keyspace data, and optional per-key metrics as a Prometheus `/metrics` endpoint (default port 9121). It supports Redis 2.x, 3.x, 4.x, 5.x, 6.x, and 7.x, as well as Redis Cluster, Redis Sentinel, KeyDB, and Tile38. The exporter is written in Go and uses the `gomodule/redigo` client library and the `prometheus/client_golang` instrumentation library.
 
 ## Local setup
 
-<!-- TODO: mirror the setup steps from CONTRIBUTING.md -->
-
 ```bash
-# Example
-git clone git@github.com:redis-performance/<repo>.git
-cd <repo>
+git clone git@github.com:redis-performance/redis_exporter.git
+cd redis_exporter
+go build .
+./redis_exporter --version
 ```
+
+Go 1.20 or later is required. Dependencies are managed with Go modules and are fetched automatically by `go build`.
 
 ## Branch naming
 
@@ -29,11 +30,24 @@ Same as human contributors: `<type>/<short-description>` (e.g. `fix/off-by-one-i
 
 ## Running tests
 
-<!-- TODO: exact command to run tests -->
+The test suite requires live Redis instances. Spin them up with Docker Compose before running tests:
 
 ```bash
-# Example
-make test
+# Start all required Redis containers
+docker-compose -f contrib/docker-compose-for-tests.yml up -d
+
+# Run the full suite (inside the test container with all URIs configured)
+make docker-test
+
+# Or run tests directly when the Redis instances are already reachable:
+go test -v -covermode=atomic -cover -race -coverprofile=coverage.txt -p 1 ./...
+```
+
+For static checks:
+
+```bash
+go vet ./...
+make checks   # gofmt compliance check
 ```
 
 Always run tests before declaring a task complete.
@@ -42,8 +56,8 @@ Always run tests before declaring a task complete.
 
 1. Create a branch: `git checkout -b <type>/<description>`.
 2. Commit with a clear message focused on *why*, not *what*.
-3. Open a pull request against `main`.
-4. Do **not** push directly to `main`.
+3. Open a pull request against `master`.
+4. Do **not** push directly to `master`.
 
 ## What to avoid
 
