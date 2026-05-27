@@ -6,7 +6,7 @@ type: kubernetes
 
 services:
   - name: redis5
-    image: redis:5
+    image: redis:8.6
     pull: if-not-exists
     commands:
       - "redis-server --port 6383  --dbfilename dump5.rdb"
@@ -14,7 +14,7 @@ services:
       - 6383
 
   - name: redis6
-    image: redis:6.2
+    image: redis:8.6
     pull: if-not-exists
     commands:
       - "redis-server --protected-mode no --dbfilename dump6.rdb"
@@ -22,7 +22,7 @@ services:
       - 6379
 
   - name: redis7
-    image: redis:7.0
+    image: redis:8.6
     pull: if-not-exists
     commands:
       - "redis-server --port 6384 --protected-mode no --dbfilename dump7.rdb"
@@ -30,7 +30,7 @@ services:
       - 6384
 
   - name: pwd-redis5
-    image: redis:5
+    image: redis:8.6
     pull: if-not-exists
     commands:
       - "redis-server --port 6380 --requirepass redis-password --dbfilename dump5-pwd.rdb"
@@ -38,7 +38,7 @@ services:
       - 6380
 
   - name: pwd-redis6
-    image: redis:6
+    image: redis:8.6
     pull: if-not-exists
     commands:
       - "redis-server --port 6390 --requirepass dummy --user exporter on +INFO +CLIENT +SELECT +SLOWLOG +LATENCY '>exporter-password' --dbfilename dump6-pwd.rdb"
@@ -46,7 +46,7 @@ services:
       - 6390
 
   - name: redis-2-8
-    image: redis:2.8.22
+    image: redis:8.6
     pull: if-not-exists
     commands:
       - "redis-server --port 6381 --dbfilename dump2-8.rdb"
