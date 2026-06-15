@@ -260,6 +260,27 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			"server_threads":        "server_threads_total",
 			"long_lock_waits":       "long_lock_waits_total",
 			"current_client_thread": "current_client_thread",
+
+			// # Bigredis (Redis-on-Flash / Flex) - Tier 1 gauges
+			// Hit ratios (instantaneous, computed server-side as ram/(ram+flash)).
+			// The _ram/_flash component counters are in metricMapCounters; prefer
+			// recomputing the ratio from rate() of those for alerting.
+			"ram_hit_ratio":       "rof_ram_hit_ratio",
+			"ram_fetch_hit_ratio": "rof_ram_fetch_hit_ratio",
+			"ram_write_hit_ratio": "rof_ram_write_hit_ratio",
+			"ram_del_hit_ratio":   "rof_ram_del_hit_ratio",
+
+			// RAM / flash capacity
+			"used_ram":       "rof_used_ram_bytes",
+			"used_ram_peak":  "rof_used_ram_peak_bytes",
+			"max_ram":        "rof_max_ram_bytes",
+			"used_disk":      "rof_used_disk_bytes",
+			"used_disk_peak": "rof_used_disk_peak_bytes",
+
+			// IO queue / blocked clients (current depth)
+			"io_blocked_clients": "rof_io_blocked_clients",
+			"io_queue_load_len":  "rof_io_queue_load_length",
+			"io_queue_save_len":  "rof_io_queue_save_length",
 		},
 
 		metricMapCounters: map[string]string{
@@ -293,6 +314,40 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 
 			"storage_provider_read_hits":   "storage_provider_read_hits",
 			"storage_provider_read_misses": "storage_provider_read_misses",
+
+			// # Bigredis (Redis-on-Flash / Flex) - Tier 1 counters
+			// Hit-ratio components: served-from-RAM vs served-from-flash.
+			"ram_hit_ratio_ram":         "rof_ram_hit_ratio_ram_total",
+			"ram_hit_ratio_flash":       "rof_ram_hit_ratio_flash_total",
+			"ram_fetch_hit_ratio_ram":   "rof_ram_fetch_hit_ratio_ram_total",
+			"ram_fetch_hit_ratio_flash": "rof_ram_fetch_hit_ratio_flash_total",
+			"ram_write_hit_ratio_ram":   "rof_ram_write_hit_ratio_ram_total",
+			"ram_write_hit_ratio_flash": "rof_ram_write_hit_ratio_flash_total",
+			"ram_del_hit_ratio_ram":     "rof_ram_del_hit_ratio_ram_total",
+			"ram_del_hit_ratio_flash":   "rof_ram_del_hit_ratio_flash_total",
+
+			// Flash IO load
+			"big_io_reads":       "rof_io_reads_total",
+			"big_io_writes":      "rof_io_writes_total",
+			"big_io_dels":        "rof_io_dels_total",
+			"big_io_read_bytes":  "rof_io_read_bytes_total",
+			"big_io_write_bytes": "rof_io_write_bytes_total",
+
+			// RAM eviction pressure (dirty = write-back to flash)
+			"ram_evictions":        "rof_ram_evictions_total",
+			"ram_dirty_evictions":  "rof_ram_dirty_evictions_total",
+			"ram_clean_evictions":  "rof_ram_clean_evictions_total",
+			"ram_expire_evictions": "rof_ram_expire_evictions_total",
+			"ram_evicted_bytes":    "rof_ram_evicted_bytes_total",
+
+			// Prefetch / cache miss volume
+			"prefetch_misses": "rof_prefetch_misses_total",
+			"prefetch_keys":   "rof_prefetch_keys_total",
+			"ramfetch_keys":   "rof_ramfetch_keys_total",
+
+			// Commands that blocked waiting on flash IO
+			"blocking_reads":  "rof_blocking_reads_total",
+			"blocking_writes": "rof_blocking_writes_total",
 		},
 	}
 
@@ -340,20 +395,30 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 		txt  string
 		lbls []string
 	}{
-		"commands_duration_seconds_total":              {txt: `Total amount of time in seconds spent per command`, lbls: []string{"cmd"}},
-		"commands_failed_calls_total":                  {txt: `Total number of errors prior command execution per command`, lbls: []string{"cmd"}},
-		"commands_rejected_calls_total":                {txt: `Total number of errors within command execution per command`, lbls: []string{"cmd"}},
-		"commands_total":                               {txt: `Total number of calls per command`, lbls: []string{"cmd"}},
-		"commands_latencies_usec":                      {txt: `A histogram of latencies per command`, lbls: []string{"cmd"}},
-		"latency_percentiles_usec":                     {txt: `A summary of latency percentile distribution per command`, lbls: []string{"cmd"}},
-		"config_key_value":                             {txt: `Config key and value`, lbls: []string{"key", "value"}},
-		"config_value":                                 {txt: `Config key and value as metric`, lbls: []string{"key"}},
-		"connected_slave_lag_seconds":                  {txt: "Lag of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
-		"connected_slave_offset_bytes":                 {txt: "Offset of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
-		"db_avg_ttl_seconds":                           {txt: "Avg TTL in seconds", lbls: []string{"db"}},
-		"db_keys":                                      {txt: "Total number of keys by DB", lbls: []string{"db"}},
-		"db_keys_expiring":                             {txt: "Total number of expiring keys by DB", lbls: []string{"db"}},
-		"db_keys_cached":                               {txt: "Total number of cached keys by DB", lbls: []string{"db"}},
+		"commands_duration_seconds_total": {txt: `Total amount of time in seconds spent per command`, lbls: []string{"cmd"}},
+		"commands_failed_calls_total":     {txt: `Total number of errors prior command execution per command`, lbls: []string{"cmd"}},
+		"commands_rejected_calls_total":   {txt: `Total number of errors within command execution per command`, lbls: []string{"cmd"}},
+		"commands_total":                  {txt: `Total number of calls per command`, lbls: []string{"cmd"}},
+		"commands_latencies_usec":         {txt: `A histogram of latencies per command`, lbls: []string{"cmd"}},
+		"latency_percentiles_usec":        {txt: `A summary of latency percentile distribution per command`, lbls: []string{"cmd"}},
+		"config_key_value":                {txt: `Config key and value`, lbls: []string{"key", "value"}},
+		"config_value":                    {txt: `Config key and value as metric`, lbls: []string{"key"}},
+		"connected_slave_lag_seconds":     {txt: "Lag of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
+		"connected_slave_offset_bytes":    {txt: "Offset of connected slave", lbls: []string{"slave_ip", "slave_port", "slave_state"}},
+		"db_avg_ttl_seconds":              {txt: "Avg TTL in seconds", lbls: []string{"db"}},
+		"db_keys":                         {txt: "Total number of keys by DB", lbls: []string{"db"}},
+		"db_keys_expiring":                {txt: "Total number of expiring keys by DB", lbls: []string{"db"}},
+		"db_keys_cached":                  {txt: "Total number of cached keys by DB", lbls: []string{"db"}},
+		// # Bigredis-Keyspace (Redis-on-Flash / Flex) per-db tiering breakdown
+		"rof_bigdb_keys":                               {txt: "Total number of keys by Bigredis DB", lbls: []string{"db"}},
+		"rof_bigdb_keys_expiring":                      {txt: "Number of expiring keys by Bigredis DB", lbls: []string{"db"}},
+		"rof_bigdb_avg_ttl_seconds":                    {txt: "Avg TTL in seconds by Bigredis DB", lbls: []string{"db"}},
+		"rof_bigdb_subexpiry":                          {txt: "Number of keys with subkey expiry by Bigredis DB", lbls: []string{"db"}},
+		"rof_bigdb_keys_clean":                         {txt: "Number of unmodified (clean) keys in RAM by Bigredis DB", lbls: []string{"db"}},
+		"rof_bigdb_keys_dirty":                         {txt: "Number of modified (dirty) keys in RAM by Bigredis DB", lbls: []string{"db"}},
+		"rof_bigdb_keys_disk":                          {txt: "Number of keys stored on disk/flash by Bigredis DB", lbls: []string{"db"}},
+		"rof_bigdb_keys_ram":                           {txt: "Number of keys held in RAM (clean+dirty) by Bigredis DB", lbls: []string{"db"}},
+		"rof_bigdb_keys_meta":                          {txt: "Number of metadata-only keys by Bigredis DB", lbls: []string{"db"}},
 		"errors_total":                                 {txt: `Total number of errors per error type`, lbls: []string{"err"}},
 		"exporter_last_scrape_error":                   {txt: "The last scrape error status.", lbls: []string{"err"}},
 		"instance_info":                                {txt: "Information about the Redis instance", lbls: []string{"role", "redis_version", "redis_build_id", "redis_mode", "os", "maxmemory_policy", "tcp_port", "run_id", "process_id"}},

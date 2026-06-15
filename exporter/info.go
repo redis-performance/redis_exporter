@@ -138,6 +138,23 @@ func (e *Exporter) extractInfoMetrics(ch chan<- prometheus.Metric, info string, 
 				continue
 			}
 
+		case "Bigredis-Keyspace":
+			if bk, ok := parseBigdbKeyspaceString(fieldKey, fieldValue); ok {
+				dbName := fieldKey
+				e.registerConstMetricGauge(ch, "rof_bigdb_keys", bk.keys, dbName)
+				e.registerConstMetricGauge(ch, "rof_bigdb_keys_expiring", bk.expires, dbName)
+				e.registerConstMetricGauge(ch, "rof_bigdb_subexpiry", bk.subexpiry, dbName)
+				e.registerConstMetricGauge(ch, "rof_bigdb_keys_clean", bk.clean, dbName)
+				e.registerConstMetricGauge(ch, "rof_bigdb_keys_dirty", bk.dirty, dbName)
+				e.registerConstMetricGauge(ch, "rof_bigdb_keys_disk", bk.disk, dbName)
+				e.registerConstMetricGauge(ch, "rof_bigdb_keys_ram", bk.ram, dbName)
+				e.registerConstMetricGauge(ch, "rof_bigdb_keys_meta", bk.meta, dbName)
+				if bk.avgTTL > -1 {
+					e.registerConstMetricGauge(ch, "rof_bigdb_avg_ttl_seconds", bk.avgTTL, dbName)
+				}
+				continue
+			}
+
 		case "Sentinel":
 			e.handleMetricsSentinel(ch, fieldKey, fieldValue)
 		}
@@ -251,6 +268,65 @@ func parseDBKeyspaceString(inputKey string, inputVal string) (keysTotal float64,
 			log.Debugf("parseDBKeyspaceString extractVal(split[3]) invalid, err: %s", err)
 			return
 		}
+	}
+
+	ok = true
+	return
+}
+
+// bigdbKeyspace holds the per-DB tiering breakdown from the # Bigredis-Keyspace
+// INFO section of a Redis-on-Flash / Flex build.
+type bigdbKeyspace struct {
+	keys      float64
+	expires   float64
+	avgTTL    float64 // seconds, -1 if absent
+	subexpiry float64
+	clean     float64
+	dirty     float64
+	disk      float64
+	ram       float64
+	meta      float64
+}
+
+/*
+valid example:
+bigdb0:keys=10,expires=0,avg_ttl=0,subexpiry=0,clean=4,dirty=1,disk=5,ram=5,meta=0
+*/
+func parseBigdbKeyspaceString(inputKey string, inputVal string) (bk bigdbKeyspace, ok bool) {
+	log.Debugf("parseBigdbKeyspaceString inputKey: [%s] inputVal: [%s]", inputKey, inputVal)
+
+	if !strings.HasPrefix(inputKey, "bigdb") {
+		return
+	}
+
+	fields := map[string]float64{}
+	for _, part := range strings.Split(inputVal, ",") {
+		val, err := extractVal(part)
+		if err != nil {
+			log.Debugf("parseBigdbKeyspaceString extractVal(%q) invalid, err: %s", part, err)
+			return
+		}
+		kv := strings.SplitN(part, "=", 2)
+		fields[kv[0]] = val
+	}
+
+	// keys is the minimal field that must be present for a valid line
+	if _, present := fields["keys"]; !present {
+		return
+	}
+
+	bk.keys = fields["keys"]
+	bk.expires = fields["expires"]
+	bk.subexpiry = fields["subexpiry"]
+	bk.clean = fields["clean"]
+	bk.dirty = fields["dirty"]
+	bk.disk = fields["disk"]
+	bk.ram = fields["ram"]
+	bk.meta = fields["meta"]
+
+	bk.avgTTL = -1
+	if ttl, present := fields["avg_ttl"]; present {
+		bk.avgTTL = ttl / 1000
 	}
 
 	ok = true
