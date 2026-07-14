@@ -65,6 +65,140 @@ func getTestExporterWithAddr(addr string) *Exporter {
 	return e
 }
 
+// fqNameFromDesc pulls the fully-qualified metric name out of a prometheus.Desc
+// string (which looks like `Desc{fqName: "test_foo_bytes", help: ...}`) without
+// needing an extra regexp import.
+func fqNameFromDesc(desc string) string {
+	const marker = `fqName: "`
+	i := strings.Index(desc, marker)
+	if i < 0 {
+		return ""
+	}
+	rest := desc[i+len(marker):]
+	if j := strings.Index(rest, `"`); j >= 0 {
+		return rest[:j]
+	}
+	return ""
+}
+
+// collectInfoMetrics feeds a synthetic INFO payload through extractInfoMetrics
+// (no live Redis needed) and returns, per emitted metric name, its value and
+// whether it was emitted as a counter.
+func collectInfoMetrics(e *Exporter, info string) (values map[string]float64, isCounter map[string]bool) {
+	chM := make(chan prometheus.Metric, 1000)
+	go func() {
+		e.extractInfoMetrics(chM, info, 0)
+		close(chM)
+	}()
+
+	values = map[string]float64{}
+	isCounter = map[string]bool{}
+	for m := range chM {
+		name := fqNameFromDesc(m.Desc().String())
+		if name == "" {
+			continue
+		}
+		dm := &dto.Metric{}
+		if err := m.Write(dm); err != nil {
+			continue
+		}
+		switch {
+		case dm.GetGauge() != nil:
+			values[name] = dm.GetGauge().GetValue()
+			isCounter[name] = false
+		case dm.GetCounter() != nil:
+			values[name] = dm.GetCounter().GetValue()
+			isCounter[name] = true
+		}
+	}
+	return values, isCounter
+}
+
+// TestAdditionalShakaMetrics exercises the actual emission path (value + type +
+// unit conversion + inf/nan handling) for a representative sample of the
+// Shaka/Flex/RocksDB metrics, rather than asserting the maps against a copy of
+// themselves.
+func TestAdditionalShakaMetrics(t *testing.T) {
+	e := getTestExporterWithAddr("redis://localhost:6379")
+
+	// No "# Section" header => every line falls through to the generic
+	// includeMetric/parseAndRegisterConstMetric path.
+	info := strings.Join([]string{
+		"mem_replication_backlog:1048576",
+		"rocks_size_on_disk:5368709120",
+		"rocks_ram_used_total:2097152",
+		"rocks_comp_input_bytes:4200000000",
+		"rocks_comp_elapsed_micros:12000000",
+		"prefetch_nonblocking:42",
+		"sync_repl_hold_latency_usec:500",
+		"avg_pipeline_length_sum:900",
+		"avg_pipeline_length_cnt:300",
+		"repl_touch_keys:13375",
+		"instantaneous_repl_touch_pct:-inf", // must be skipped
+		"disk_fragmentation_ratio:inf",      // must be skipped
+	}, "\n")
+
+	values, isCounter := collectInfoMetrics(e, info)
+
+	const eps = 1e-9
+	type want struct {
+		val      float64
+		counter  bool
+		wantEmit bool
+	}
+	cases := map[string]want{
+		// bytes gauge, verbatim value
+		"test_mem_replication_backlog_bytes": {val: 1048576, counter: false, wantEmit: true},
+		"test_rocks_size_on_disk_bytes":      {val: 5368709120, counter: false, wantEmit: true},
+		// _total gauge suffix dropped, byte unit added, stays a gauge
+		"test_rocks_ram_used_bytes": {val: 2097152, counter: false, wantEmit: true},
+		// cumulative RocksDB field now a counter with _total
+		"test_rocks_comp_input_bytes_total": {val: 4200000000, counter: true, wantEmit: true},
+		// counter + microseconds normalized to seconds
+		"test_rocks_comp_elapsed_seconds_total": {val: 12.0, counter: true, wantEmit: true},
+		// moved from gauge to counter
+		"test_rof_prefetch_nonblocking_total": {val: 42, counter: true, wantEmit: true},
+		// gauge, microseconds normalized to seconds
+		"test_sync_repl_hold_latency_seconds": {val: 0.0005, counter: false, wantEmit: true},
+		// reserved _sum/_count suffixes renamed, stay counters
+		"test_rof_pipeline_length_total":  {val: 900, counter: true, wantEmit: true},
+		"test_rof_pipeline_batches_total": {val: 300, counter: true, wantEmit: true},
+		"test_repl_touch_keys_total":      {val: 13375, counter: true, wantEmit: true},
+		// non-finite samples must not be emitted at all
+		"test_instantaneous_repl_touch_pct": {wantEmit: false},
+		"test_rof_disk_fragmentation_ratio": {wantEmit: false},
+	}
+
+	for name, w := range cases {
+		got, emitted := values[name]
+		if w.wantEmit != emitted {
+			t.Errorf("%s: emitted=%v, want emitted=%v", name, emitted, w.wantEmit)
+			continue
+		}
+		if !w.wantEmit {
+			continue
+		}
+		if diff := got - w.val; diff > eps || diff < -eps {
+			t.Errorf("%s: value=%v, want %v", name, got, w.val)
+		}
+		if isCounter[name] != w.counter {
+			t.Errorf("%s: isCounter=%v, want %v", name, isCounter[name], w.counter)
+		}
+	}
+}
+
+// TestMetricMapsAreDisjoint is a genuine invariant (not a copy of the map data):
+// a field key in BOTH maps gets the gauge's name but the counter's type, a
+// name/type split that is hard to debug on a dashboard.
+func TestMetricMapsAreDisjoint(t *testing.T) {
+	e := getTestExporterWithAddr("redis://localhost:6379")
+	for k := range e.metricMapGauges {
+		if _, dup := e.metricMapCounters[k]; dup {
+			t.Errorf("INFO field %q is present in both metricMapGauges and metricMapCounters", k)
+		}
+	}
+}
+
 func getTestExporterWithAddrAndOptions(addr string, opt Options) *Exporter {
 	e, _ := NewRedisExporter(addr, opt)
 	return e
