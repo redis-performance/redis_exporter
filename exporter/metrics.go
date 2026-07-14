@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -58,7 +59,10 @@ func (e *Exporter) parseAndRegisterConstMetric(ch chan<- prometheus.Metric, fiel
 
 	}
 	if err != nil {
+		// Skip emission on a parse error rather than publishing a phantom 0
+		// that is indistinguishable from a legitimate zero datapoint.
 		log.Debugf("couldn't parse %s, err: %s", fieldValue, err)
+		return
 	}
 
 	t := prometheus.GaugeValue
@@ -66,10 +70,23 @@ func (e *Exporter) parseAndRegisterConstMetric(ch chan<- prometheus.Metric, fiel
 		t = prometheus.CounterValue
 	}
 
+	// Normalize non-base time units to seconds, following the latest_fork_usec
+	// precedent, so time series are comparable across the exporter.
 	switch metricName {
 	case "latest_fork_usec":
 		metricName = "latest_fork_seconds"
 		val = val / 1e6
+	case "sync_repl_hold_latency_seconds", "rocks_comp_elapsed_seconds_total":
+		val = val / 1e6
+	}
+
+	// Redis can emit inf/nan for ratio fields (e.g. a divide-by-zero
+	// fragmentation ratio prints "inf"); strconv.ParseFloat accepts those with
+	// no error. Publishing +Inf/NaN blanks Grafana panels via sum()/avg()/rate()
+	// and destroys y-axis autoscaling, so skip the sample instead.
+	if math.IsInf(val, 0) || math.IsNaN(val) {
+		log.Debugf("skipping non-finite value for %s: %q", metricName, fieldValue)
+		return
 	}
 
 	e.registerConstMetric(ch, metricName, val, t)

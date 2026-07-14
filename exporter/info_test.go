@@ -52,6 +52,46 @@ func TestKeyspaceStringParser(t *testing.T) {
 	}
 }
 
+func TestParseBigdbKeyspaceString(t *testing.T) {
+	tsts := []struct {
+		db, stats string
+		want      bigdbKeyspace
+		ok        bool
+	}{
+		// not a bigdb line
+		{db: "db0", stats: "keys=1,expires=0,avg_ttl=0", ok: false},
+		// malformed value
+		{db: "bigdb0", stats: "keys=abc", ok: false},
+		// no keys field
+		{db: "bigdb0", stats: "expires=0,ram=1", ok: false},
+
+		{
+			db:    "bigdb0",
+			stats: "keys=10,expires=2,avg_ttl=5000,subexpiry=1,clean=4,dirty=1,disk=5,ram=5,meta=0",
+			want:  bigdbKeyspace{keys: 10, expires: 2, avgTTL: 5, subexpiry: 1, clean: 4, dirty: 1, disk: 5, ram: 5, meta: 0},
+			ok:    true,
+		},
+		// avg_ttl absent -> -1
+		{
+			db:    "bigdb1",
+			stats: "keys=3,expires=0,subexpiry=0,clean=0,dirty=0,disk=3,ram=0,meta=3",
+			want:  bigdbKeyspace{keys: 3, disk: 3, meta: 3, avgTTL: -1},
+			ok:    true,
+		},
+	}
+
+	for _, tst := range tsts {
+		bk, ok := parseBigdbKeyspaceString(tst.db, tst.stats)
+		if ok != tst.ok {
+			t.Errorf("ok mismatch for db:%s stats:%s  got:%v want:%v", tst.db, tst.stats, ok, tst.ok)
+			continue
+		}
+		if ok && bk != tst.want {
+			t.Errorf("values not matching, db:%s stats:%s\n got: %+v\nwant: %+v", tst.db, tst.stats, bk, tst.want)
+		}
+	}
+}
+
 type slaveData struct {
 	k, v            string
 	ip, state, port string
