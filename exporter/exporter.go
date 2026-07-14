@@ -217,18 +217,22 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			"loading_loaded_perc":               "loading_loaded_perc",
 
 			// # Stats
-			"pubsub_channels":           "pubsub_channels",
-			"pubsub_patterns":           "pubsub_patterns",
-			"latest_fork_usec":          "latest_fork_usec",
-			"tracking_total_keys":       "tracking_total_keys",
-			"tracking_total_items":      "tracking_total_items",
-			"tracking_total_prefixes":   "tracking_total_prefixes",
-			"instantaneous_input_kbps":  "instantaneous_input_kbps",
-			"instantaneous_output_kbps": "instantaneous_output_kbps",
-			"instantaneous_ops_per_sec": "instantaneous_ops_per_sec",
-			"expired_subkeys_active":    "expired_subkeys_active",
-			"expired_keys_active":       "expired_keys_active",
-			"keys_trim_perc":            "keys_trim_perc",
+			"pubsub_channels":               "pubsub_channels",
+			"pubsub_patterns":               "pubsub_patterns",
+			"latest_fork_usec":              "latest_fork_usec",
+			"tracking_total_keys":           "tracking_total_keys",
+			"tracking_total_items":          "tracking_total_items",
+			"tracking_total_prefixes":       "tracking_total_prefixes",
+			"instantaneous_input_kbps":      "instantaneous_input_kbps",
+			"instantaneous_output_kbps":     "instantaneous_output_kbps",
+			"instantaneous_ops_per_sec":     "instantaneous_ops_per_sec",
+			"instantaneous_repl_kbps":       "instantaneous_repl_kbps",
+			"instantaneous_repl_touch_kbps": "instantaneous_repl_touch_kbps",
+			"instantaneous_repl_touch_pct":  "instantaneous_repl_touch_pct",
+			"expired_subkeys_active":        "expired_subkeys_active",
+			"expired_keys_active":           "expired_keys_active",
+			"keys_trim_perc":                "keys_trim_perc",
+			"shardtrim_in_progress":         "shardtrim_in_progress",
 
 			// # Replication
 			"connected_slaves":               "connected_slaves",
@@ -249,6 +253,7 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			"master_link_down_since_seconds": "master_link_down_since_seconds",
 			"master_sync_perc":               "master_sync_perc",
 			"mem_replica_full_sync_buffer":   "mem_replica_full_sync_buffer_bytes",
+			"mem_replication_backlog":        "mem_replication_backlog_bytes",
 			"sync_full":                      "replica_resyncs_full",
 			"sync_partial_ok":                "replica_partial_resync_accepted",
 			"sync_partial_err":               "replica_partial_resync_denied",
@@ -325,7 +330,6 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			"wait_busy_key":                     "rof_wait_busy_key",
 
 			// Other Bigredis / Flex gauges
-			"prefetch_nonblocking":            "rof_prefetch_nonblocking",
 			"big_user_io_ratio_redis":         "rof_user_io_ratio_redis",
 			"big_user_io_ratio_flash":         "rof_user_io_ratio_flash",
 			"big_io_ratio_redis":              "rof_io_ratio_redis",
@@ -334,7 +338,7 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			"ram_keys_needed":                 "rof_ram_keys_needed",
 			"non_ram_keys_needed":             "rof_non_ram_keys_needed",
 			"big_ttl_scan_running":            "rof_ttl_scan_running",
-			"mem_ttl_histograms":              "rof_mem_ttl_histograms",
+			"mem_ttl_histograms":              "rof_mem_ttl_histograms_bytes",
 			"unblessed_keys_awaiting_swapout": "rof_unblessed_keys_awaiting_swapout",
 
 			// Shaka / SST replication gauges
@@ -344,29 +348,20 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			"sst_speedb_user_bytes_since_base": "sst_speedb_user_bytes_since_base",
 			"sync_repl_pending_clients":        "sync_repl_pending_clients",
 			"sync_repl_pending_commands":       "sync_repl_pending_commands",
-			"sync_repl_hold_count":             "sync_repl_hold_count",
-			"sync_repl_hold_depth_sum":         "sync_repl_hold_depth_sum",
-			"sync_repl_hold_latency_usec":      "sync_repl_hold_latency_usec",
-			"sync_dirty_keys_count":            "sync_dirty_keys_count",
+			"sync_repl_hold_count":             "sync_repl_holds",
+			"sync_repl_hold_depth_sum":         "sync_repl_hold_depth",
+			"sync_repl_hold_latency_usec":      "sync_repl_hold_latency_seconds",
+			"sync_dirty_keys_count":            "sync_dirty_keys",
 
-			// RocksDB gauges
-			"rocks_flush_started":                   "rocks_flush_started",
-			"rocks_flush_completed":                 "rocks_flush_completed",
-			"rocks_meta_flush_completed":            "rocks_meta_flush_completed",
-			"rocks_meta_comp_completed":             "rocks_meta_comp_completed",
+			// RocksDB gauges (instantaneous state; cumulative flush/compaction
+			// counters live in metricMapCounters below).
+			// NOTE: rocks_flush_writes_slowdown/stop and rocks_flush_num_entries
+			// may be cumulative event counts rather than snapshots; confirm
+			// against a live Speedb INFO and move to counters if so.
 			"rocks_flush_writes_slowdown":           "rocks_flush_writes_slowdown",
 			"rocks_flush_writes_stop":               "rocks_flush_writes_stop",
-			"rocks_comp_started":                    "rocks_comp_started",
-			"rocks_comp_completed":                  "rocks_comp_completed",
-			"rocks_comp_input_bytes":                "rocks_comp_input_bytes",
-			"rocks_comp_output_bytes":               "rocks_comp_output_bytes",
-			"rocks_comp_elapsed_micros":             "rocks_comp_elapsed_micros",
-			"rocks_comp_input_records":              "rocks_comp_input_records",
-			"rocks_comp_output_records":             "rocks_comp_output_records",
-			"rocks_comp_records_replaced":           "rocks_comp_records_replaced",
-			"rocks_comp_records_deleted":            "rocks_comp_records_deleted",
-			"rocks_L0_files":                        "rocks_L0_files",
-			"rocks_meta_L0_files":                   "rocks_meta_L0_files",
+			"rocks_L0_files":                        "rocks_l0_files",
+			"rocks_meta_L0_files":                   "rocks_meta_l0_files",
 			"rocks_keys_in_memtables":               "rocks_keys_in_memtables",
 			"rocks_dels_in_memtables":               "rocks_dels_in_memtables",
 			"rocks_num_immutable_mem_table":         "rocks_num_immutable_mem_table",
@@ -374,15 +369,15 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			"rocks_num_mem_table_flush_pending":     "rocks_num_mem_table_flush_pending",
 			"rocks_num_compactions_pending":         "rocks_num_compactions_pending",
 			"rocks_flush_num_entries":               "rocks_flush_num_entries",
-			"rocks_flush_data_size":                 "rocks_flush_data_size",
-			"rocks_size_of_actual_data":             "rocks_size_of_actual_data",
-			"rocks_memtable_memory_budget":          "rocks_memtable_memory_budget",
-			"rocks_ram_used_total":                  "rocks_ram_used_total",
-			"rocks_keys_total":                      "rocks_keys_total",
-			"rocks_size_on_disk":                    "rocks_size_on_disk",
-			"rocks_total_files":                     "rocks_total_files",
-			"rocks_ram_used_for_mem_tables":         "rocks_ram_used_for_mem_tables",
-			"rocks_additional_ram_used_for_readers": "rocks_additional_ram_used_for_readers",
+			"rocks_flush_data_size":                 "rocks_flush_data_size_bytes",
+			"rocks_size_of_actual_data":             "rocks_size_of_actual_data_bytes",
+			"rocks_memtable_memory_budget":          "rocks_memtable_memory_budget_bytes",
+			"rocks_ram_used_total":                  "rocks_ram_used_bytes",
+			"rocks_keys_total":                      "rocks_keys",
+			"rocks_size_on_disk":                    "rocks_size_on_disk_bytes",
+			"rocks_total_files":                     "rocks_files",
+			"rocks_ram_used_for_mem_tables":         "rocks_ram_used_for_mem_tables_bytes",
+			"rocks_additional_ram_used_for_readers": "rocks_additional_ram_used_for_readers_bytes",
 		},
 
 		metricMapCounters: map[string]string{
@@ -410,6 +405,7 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			"rdb_saves":                  "rdb_saves_total",
 			"aof_rewrites":               "aof_rewrites_total",
 			"repl_touch_bytes":           "repl_touch_bytes_total",
+			"repl_touch_keys":            "repl_touch_keys_total",
 			"repl_oom_buffer_rejections": "repl_oom_buffer_rejections_total",
 
 			"used_cpu_sys":              "cpu_sys_seconds_total",
@@ -493,8 +489,28 @@ func NewRedisExporter(redisURI string, opts Options) (*Exporter, error) {
 			"big_next_in_line_unblocked":               "rof_next_in_line_unblocked_total",
 			"big_head_of_line_blocked":                 "rof_head_of_line_blocked_total",
 			"big_next_in_line_blocked":                 "rof_next_in_line_blocked_total",
-			"avg_pipeline_length_sum":                  "rof_avg_pipeline_length_sum",
-			"avg_pipeline_length_cnt":                  "rof_avg_pipeline_length_count",
+			// sum/count of an average; _sum/_count are reserved for summaries, so
+			// expose as plain _total counters (avg = rate(length)/rate(batches)).
+			"avg_pipeline_length_sum": "rof_pipeline_length_total",
+			"avg_pipeline_length_cnt": "rof_pipeline_batches_total",
+			"prefetch_nonblocking":    "rof_prefetch_nonblocking_total",
+
+			// RocksDB cumulative flush/compaction counters (monotonic since
+			// process start). rocks_comp_elapsed_micros is normalized to seconds
+			// in parseAndRegisterConstMetric.
+			"rocks_flush_started":         "rocks_flush_started_total",
+			"rocks_flush_completed":       "rocks_flush_completed_total",
+			"rocks_meta_flush_completed":  "rocks_meta_flush_completed_total",
+			"rocks_meta_comp_completed":   "rocks_meta_comp_completed_total",
+			"rocks_comp_started":          "rocks_comp_started_total",
+			"rocks_comp_completed":        "rocks_comp_completed_total",
+			"rocks_comp_input_bytes":      "rocks_comp_input_bytes_total",
+			"rocks_comp_output_bytes":     "rocks_comp_output_bytes_total",
+			"rocks_comp_elapsed_micros":   "rocks_comp_elapsed_seconds_total",
+			"rocks_comp_input_records":    "rocks_comp_input_records_total",
+			"rocks_comp_output_records":   "rocks_comp_output_records_total",
+			"rocks_comp_records_replaced": "rocks_comp_records_replaced_total",
+			"rocks_comp_records_deleted":  "rocks_comp_records_deleted_total",
 		},
 	}
 

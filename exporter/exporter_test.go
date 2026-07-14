@@ -65,163 +65,136 @@ func getTestExporterWithAddr(addr string) *Exporter {
 	return e
 }
 
-func TestAdditionalShakaMetricMappings(t *testing.T) {
-	e := getTestExporterWithAddr("redis://localhost:6379")
-
-	gaugeMappings := map[string]string{
-		"max_process_mem":                       "max_process_mem_bytes",
-		"current_active_defrag_time":            "current_active_defrag_time",
-		"rdb_saves_consecutive_failures":        "rdb_saves_consecutive_failures",
-		"aof_rewrites_consecutive_failures":     "aof_rewrites_consecutive_failures",
-		"current_cow_peak":                      "current_cow_peak",
-		"current_cow_size":                      "current_cow_size",
-		"current_fork_perc":                     "current_fork_perc",
-		"loading_loaded_perc":                   "loading_loaded_perc",
-		"instantaneous_input_kbps":              "instantaneous_input_kbps",
-		"instantaneous_output_kbps":             "instantaneous_output_kbps",
-		"instantaneous_ops_per_sec":             "instantaneous_ops_per_sec",
-		"expired_subkeys_active":                "expired_subkeys_active",
-		"expired_keys_active":                   "expired_keys_active",
-		"keys_trim_perc":                        "keys_trim_perc",
-		"slave_read_only":                       "slave_read_only",
-		"slave_read_repl_offset":                "slave_read_repl_offset",
-		"slave_oom_pause":                       "slave_oom_pause",
-		"master_sync_total_bytes":               "master_sync_total_bytes",
-		"master_sync_read_bytes":                "master_sync_read_bytes",
-		"master_sync_attempts":                  "master_sync_attempts",
-		"master_link_down_since_seconds":        "master_link_down_since_seconds",
-		"master_sync_perc":                      "master_sync_perc",
-		"mem_replica_full_sync_buffer":          "mem_replica_full_sync_buffer_bytes",
-		"used_ram_for_swapout":                  "rof_used_ram_for_swapout_bytes",
-		"max_ram_by_data_ratio":                 "rof_max_ram_by_data_ratio",
-		"disk_actual":                           "rof_disk_actual_bytes",
-		"disk_inuse":                            "rof_disk_inuse_bytes",
-		"disk_fragmentation_ratio":              "rof_disk_fragmentation_ratio",
-		"disk_allocation":                       "rof_disk_allocation_bytes",
-		"disk_ios":                              "rof_disk_ios",
-		"disk_actual_key_names":                 "rof_disk_actual_key_names_bytes",
-		"used_disk_key_names":                   "rof_used_disk_key_names_bytes",
-		"ram_overhead":                          "rof_ram_overhead_bytes",
-		"keys_ram_overhead":                     "rof_keys_ram_overhead_bytes",
-		"ram_keys_size":                         "rof_ram_keys_size_bytes",
-		"big_inst_avg_read_io_queue":            "rof_io_read_queue_length_avg",
-		"big_inst_avg_write_io_queue":           "rof_io_write_queue_length_avg",
-		"big_inst_avg_del_io_queue":             "rof_io_del_queue_length_avg",
-		"big_inst_avg_io_blocked_clients":       "rof_io_blocked_clients_avg",
-		"big_inst_avg_io_postponed_clients":     "rof_io_postponed_clients_avg",
-		"io_keys_waiting":                       "rof_io_keys_waiting",
-		"wait_busy_key":                         "rof_wait_busy_key",
-		"prefetch_nonblocking":                  "rof_prefetch_nonblocking",
-		"big_user_io_ratio_redis":               "rof_user_io_ratio_redis",
-		"big_user_io_ratio_flash":               "rof_user_io_ratio_flash",
-		"big_io_ratio_redis":                    "rof_io_ratio_redis",
-		"big_io_ratio_flash":                    "rof_io_ratio_flash",
-		"active_clients":                        "rof_active_clients",
-		"ram_keys_needed":                       "rof_ram_keys_needed",
-		"non_ram_keys_needed":                   "rof_non_ram_keys_needed",
-		"big_ttl_scan_running":                  "rof_ttl_scan_running",
-		"mem_ttl_histograms":                    "rof_mem_ttl_histograms",
-		"unblessed_keys_awaiting_swapout":       "rof_unblessed_keys_awaiting_swapout",
-		"sst_base_rdb_size":                     "sst_base_rdb_size_bytes",
-		"sst_backup_size":                       "sst_backup_size_bytes",
-		"sst_aof_incr_size":                     "sst_aof_incr_size_bytes",
-		"sst_speedb_user_bytes_since_base":      "sst_speedb_user_bytes_since_base",
-		"sync_repl_pending_clients":             "sync_repl_pending_clients",
-		"sync_repl_pending_commands":            "sync_repl_pending_commands",
-		"sync_repl_hold_count":                  "sync_repl_hold_count",
-		"sync_repl_hold_depth_sum":              "sync_repl_hold_depth_sum",
-		"sync_repl_hold_latency_usec":           "sync_repl_hold_latency_usec",
-		"sync_dirty_keys_count":                 "sync_dirty_keys_count",
-		"rocks_flush_started":                   "rocks_flush_started",
-		"rocks_flush_completed":                 "rocks_flush_completed",
-		"rocks_meta_flush_completed":            "rocks_meta_flush_completed",
-		"rocks_meta_comp_completed":             "rocks_meta_comp_completed",
-		"rocks_flush_writes_slowdown":           "rocks_flush_writes_slowdown",
-		"rocks_flush_writes_stop":               "rocks_flush_writes_stop",
-		"rocks_comp_started":                    "rocks_comp_started",
-		"rocks_comp_completed":                  "rocks_comp_completed",
-		"rocks_comp_input_bytes":                "rocks_comp_input_bytes",
-		"rocks_comp_output_bytes":               "rocks_comp_output_bytes",
-		"rocks_comp_elapsed_micros":             "rocks_comp_elapsed_micros",
-		"rocks_comp_input_records":              "rocks_comp_input_records",
-		"rocks_comp_output_records":             "rocks_comp_output_records",
-		"rocks_comp_records_replaced":           "rocks_comp_records_replaced",
-		"rocks_comp_records_deleted":            "rocks_comp_records_deleted",
-		"rocks_L0_files":                        "rocks_L0_files",
-		"rocks_meta_L0_files":                   "rocks_meta_L0_files",
-		"rocks_keys_in_memtables":               "rocks_keys_in_memtables",
-		"rocks_dels_in_memtables":               "rocks_dels_in_memtables",
-		"rocks_num_immutable_mem_table":         "rocks_num_immutable_mem_table",
-		"rocks_num_immutable_mem_table_flushed": "rocks_num_immutable_mem_table_flushed",
-		"rocks_num_mem_table_flush_pending":     "rocks_num_mem_table_flush_pending",
-		"rocks_num_compactions_pending":         "rocks_num_compactions_pending",
-		"rocks_flush_num_entries":               "rocks_flush_num_entries",
-		"rocks_flush_data_size":                 "rocks_flush_data_size",
-		"rocks_size_of_actual_data":             "rocks_size_of_actual_data",
-		"rocks_memtable_memory_budget":          "rocks_memtable_memory_budget",
-		"rocks_ram_used_total":                  "rocks_ram_used_total",
-		"rocks_keys_total":                      "rocks_keys_total",
-		"rocks_size_on_disk":                    "rocks_size_on_disk",
-		"rocks_total_files":                     "rocks_total_files",
-		"rocks_ram_used_for_mem_tables":         "rocks_ram_used_for_mem_tables",
-		"rocks_additional_ram_used_for_readers": "rocks_additional_ram_used_for_readers",
+// fqNameFromDesc pulls the fully-qualified metric name out of a prometheus.Desc
+// string (which looks like `Desc{fqName: "test_foo_bytes", help: ...}`) without
+// needing an extra regexp import.
+func fqNameFromDesc(desc string) string {
+	const marker = `fqName: "`
+	i := strings.Index(desc, marker)
+	if i < 0 {
+		return ""
 	}
-
-	counterMappings := map[string]string{
-		"keyspace_read_hits":                       "keyspace_read_hits_total",
-		"keyspace_read_misses":                     "keyspace_read_misses_total",
-		"keyspace_write_hits":                      "keyspace_write_hits_total",
-		"keyspace_write_misses":                    "keyspace_write_misses_total",
-		"keys_trimmed":                             "keys_trimmed_total",
-		"keys_trim_scanned":                        "keys_trim_scanned_total",
-		"keys_trim_total":                          "keys_trim_total",
-		"total_forks":                              "forks_total",
-		"total_active_defrag_time":                 "active_defrag_time_total",
-		"rdb_saves":                                "rdb_saves_total",
-		"aof_rewrites":                             "aof_rewrites_total",
-		"repl_touch_bytes":                         "repl_touch_bytes_total",
-		"repl_oom_buffer_rejections":               "repl_oom_buffer_rejections_total",
-		"blocking_reads_missed":                    "rof_blocking_reads_missed_total",
-		"prefetch_missing":                         "rof_prefetch_missing_total",
-		"prefetch_expired":                         "rof_prefetch_expired_total",
-		"prefetch_meta":                            "rof_prefetch_meta_total",
-		"ramfetch_meta":                            "rof_ramfetch_meta_total",
-		"big_io_writes_metaonly":                   "rof_io_writes_metaonly_total",
-		"big_metadata_returned_to_ram":             "rof_metadata_returned_to_ram_total",
-		"big_metadata_clean_returned_to_ram":       "rof_metadata_clean_returned_to_ram_total",
-		"big_evex_scans_triggered":                 "rof_evex_scans_triggered_total",
-		"big_evex_scans_completed":                 "rof_evex_scans_completed_total",
-		"big_ttl_scans_triggered":                  "rof_ttl_scans_triggered_total",
-		"big_ttl_histogram_switches":               "rof_ttl_histogram_switches_total",
-		"big_disk_expired_subkeys_loaded":          "rof_disk_expired_subkeys_loaded_total",
-		"big_ttl_histogram_expired":                "rof_ttl_histogram_expired_total",
-		"big_ttl_histogram_oo_range":               "rof_ttl_histogram_oo_range_total",
-		"big_disk_expired_keys":                    "rof_disk_expired_keys_total",
-		"big_disk_evicted_keys":                    "rof_disk_evicted_keys_total",
-		"io_blessed_keys":                          "rof_io_blessed_keys_total",
-		"io_blessed_keys_serialized_size":          "rof_io_blessed_keys_serialized_size_bytes_total",
-		"big_blessed_total":                        "rof_blessed_total",
-		"big_unblessed_oom_total":                  "rof_unblessed_oom_total",
-		"big_unblessed_keysize_total":              "rof_unblessed_keysize_total",
-		"eventloop_cycles_with_clients_processing": "rof_eventloop_cycles_with_clients_processing_total",
-		"total_client_processing_events":           "rof_client_processing_events_total",
-		"big_head_of_line_unblocked":               "rof_head_of_line_unblocked_total",
-		"big_next_in_line_unblocked":               "rof_next_in_line_unblocked_total",
-		"big_head_of_line_blocked":                 "rof_head_of_line_blocked_total",
-		"big_next_in_line_blocked":                 "rof_next_in_line_blocked_total",
-		"avg_pipeline_length_sum":                  "rof_avg_pipeline_length_sum",
-		"avg_pipeline_length_cnt":                  "rof_avg_pipeline_length_count",
+	rest := desc[i+len(marker):]
+	if j := strings.Index(rest, `"`); j >= 0 {
+		return rest[:j]
 	}
+	return ""
+}
 
-	for infoField, wantMetric := range gaugeMappings {
-		if gotMetric := e.metricMapGauges[infoField]; gotMetric != wantMetric {
-			t.Errorf("metricMapGauges[%q] = %q, want %q", infoField, gotMetric, wantMetric)
+// collectInfoMetrics feeds a synthetic INFO payload through extractInfoMetrics
+// (no live Redis needed) and returns, per emitted metric name, its value and
+// whether it was emitted as a counter.
+func collectInfoMetrics(e *Exporter, info string) (values map[string]float64, isCounter map[string]bool) {
+	chM := make(chan prometheus.Metric, 1000)
+	go func() {
+		e.extractInfoMetrics(chM, info, 0)
+		close(chM)
+	}()
+
+	values = map[string]float64{}
+	isCounter = map[string]bool{}
+	for m := range chM {
+		name := fqNameFromDesc(m.Desc().String())
+		if name == "" {
+			continue
+		}
+		dm := &dto.Metric{}
+		if err := m.Write(dm); err != nil {
+			continue
+		}
+		switch {
+		case dm.GetGauge() != nil:
+			values[name] = dm.GetGauge().GetValue()
+			isCounter[name] = false
+		case dm.GetCounter() != nil:
+			values[name] = dm.GetCounter().GetValue()
+			isCounter[name] = true
 		}
 	}
+	return values, isCounter
+}
 
-	for infoField, wantMetric := range counterMappings {
-		if gotMetric := e.metricMapCounters[infoField]; gotMetric != wantMetric {
-			t.Errorf("metricMapCounters[%q] = %q, want %q", infoField, gotMetric, wantMetric)
+// TestAdditionalShakaMetrics exercises the actual emission path (value + type +
+// unit conversion + inf/nan handling) for a representative sample of the
+// Shaka/Flex/RocksDB metrics, rather than asserting the maps against a copy of
+// themselves.
+func TestAdditionalShakaMetrics(t *testing.T) {
+	e := getTestExporterWithAddr("redis://localhost:6379")
+
+	// No "# Section" header => every line falls through to the generic
+	// includeMetric/parseAndRegisterConstMetric path.
+	info := strings.Join([]string{
+		"mem_replication_backlog:1048576",
+		"rocks_size_on_disk:5368709120",
+		"rocks_ram_used_total:2097152",
+		"rocks_comp_input_bytes:4200000000",
+		"rocks_comp_elapsed_micros:12000000",
+		"prefetch_nonblocking:42",
+		"sync_repl_hold_latency_usec:500",
+		"avg_pipeline_length_sum:900",
+		"avg_pipeline_length_cnt:300",
+		"repl_touch_keys:13375",
+		"instantaneous_repl_touch_pct:-inf", // must be skipped
+		"disk_fragmentation_ratio:inf",      // must be skipped
+	}, "\n")
+
+	values, isCounter := collectInfoMetrics(e, info)
+
+	const eps = 1e-9
+	type want struct {
+		val      float64
+		counter  bool
+		wantEmit bool
+	}
+	cases := map[string]want{
+		// bytes gauge, verbatim value
+		"test_mem_replication_backlog_bytes": {val: 1048576, counter: false, wantEmit: true},
+		"test_rocks_size_on_disk_bytes":      {val: 5368709120, counter: false, wantEmit: true},
+		// _total gauge suffix dropped, byte unit added, stays a gauge
+		"test_rocks_ram_used_bytes": {val: 2097152, counter: false, wantEmit: true},
+		// cumulative RocksDB field now a counter with _total
+		"test_rocks_comp_input_bytes_total": {val: 4200000000, counter: true, wantEmit: true},
+		// counter + microseconds normalized to seconds
+		"test_rocks_comp_elapsed_seconds_total": {val: 12.0, counter: true, wantEmit: true},
+		// moved from gauge to counter
+		"test_rof_prefetch_nonblocking_total": {val: 42, counter: true, wantEmit: true},
+		// gauge, microseconds normalized to seconds
+		"test_sync_repl_hold_latency_seconds": {val: 0.0005, counter: false, wantEmit: true},
+		// reserved _sum/_count suffixes renamed, stay counters
+		"test_rof_pipeline_length_total":  {val: 900, counter: true, wantEmit: true},
+		"test_rof_pipeline_batches_total": {val: 300, counter: true, wantEmit: true},
+		"test_repl_touch_keys_total":      {val: 13375, counter: true, wantEmit: true},
+		// non-finite samples must not be emitted at all
+		"test_instantaneous_repl_touch_pct": {wantEmit: false},
+		"test_rof_disk_fragmentation_ratio": {wantEmit: false},
+	}
+
+	for name, w := range cases {
+		got, emitted := values[name]
+		if w.wantEmit != emitted {
+			t.Errorf("%s: emitted=%v, want emitted=%v", name, emitted, w.wantEmit)
+			continue
+		}
+		if !w.wantEmit {
+			continue
+		}
+		if diff := got - w.val; diff > eps || diff < -eps {
+			t.Errorf("%s: value=%v, want %v", name, got, w.val)
+		}
+		if isCounter[name] != w.counter {
+			t.Errorf("%s: isCounter=%v, want %v", name, isCounter[name], w.counter)
+		}
+	}
+}
+
+// TestMetricMapsAreDisjoint is a genuine invariant (not a copy of the map data):
+// a field key in BOTH maps gets the gauge's name but the counter's type, a
+// name/type split that is hard to debug on a dashboard.
+func TestMetricMapsAreDisjoint(t *testing.T) {
+	e := getTestExporterWithAddr("redis://localhost:6379")
+	for k := range e.metricMapGauges {
+		if _, dup := e.metricMapCounters[k]; dup {
+			t.Errorf("INFO field %q is present in both metricMapGauges and metricMapCounters", k)
 		}
 	}
 }
